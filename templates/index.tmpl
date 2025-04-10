@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload OAS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        #left-panel, #right-panel {
+            width: 50%;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+        #right-panel {
+            border-left: 2px solid #ddd;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        h1 {
+            color: #333;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: left;
+        }
+        h2 {
+            color: #333;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: left;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #download {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 12px 24px;
+            font-size: 18px;
+            background-color: #28a745;
+        }
+        #download:hover {
+            background-color: #218838;
+        }
+        input[type="file"] {
+            display: block;
+            margin-bottom: 15px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        ul li {
+            padding: 5px 0;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow: auto;
+            flex-grow: 1;
+            max-height: calc(100vh - 60px);
+        }
+    </style>
+</head>
+<body>
+    <div id="left-panel">
+        <h1>Upload OpenAPI Spec</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="oas">
+            <button type="submit">Upload</button>
+        </form>
+
+        <h2>Select Endpoints</h2>
+        <ul id="endpoints"></ul>
+
+        <button id="generate">Generate New OpenAPI</button>
+    </div>
+    
+    <div id="right-panel">
+        <button id="download">Download OpenAPI</button>
+        <h2>Rendered OpenAPI</h2>
+        <pre id="output"></pre>
+    </div>
+
+    <script>
+        document.getElementById("uploadForm").onsubmit = async function(event) {
+            event.preventDefault();
+            let formData = new FormData(event.target);
+
+            let response = await fetch("/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            let data = await response.json();
+            let endpointsList = document.getElementById("endpoints");
+            endpointsList.innerHTML = "";
+
+            data.endpoints.forEach(endpoint => {
+                let li = document.createElement("li");
+                let checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.value = endpoint;
+                checkbox.onchange = function() {
+                    select.style.display = this.checked ? "inline-block" : "none";
+                };
+
+                let label = document.createElement("label");
+                label.textContent = " " + endpoint;
+
+                let select = document.createElement("select");
+                select.style.display = "none";
+                select.innerHTML = `
+                    <option value="AWS">AWS</option>
+                    <option value="AWS_PROXY">AWS_PROXY</option>
+                    <option value="MOCK">MOCK</option>
+                    <option value="HTTP">HTTP</option>
+                    <option value="HTTP_PROXY">HTTP_PROXY</option>
+                `;
+                select.style.marginLeft = "10px";
+
+                li.appendChild(checkbox);
+                li.appendChild(label);
+                li.appendChild(select);
+                endpointsList.appendChild(li);
+            });
+        };
+
+        document.getElementById("generate").onclick = async function() {
+            let selectedEndpoints = Array.from(document.querySelectorAll("#endpoints input:checked")).map(input => {
+                return {
+                    endpoint: input.value,
+                    integration: input.parentElement.querySelector("select").value // Ensure correct integration selection
+                };
+            });
+
+            console.log("Sending data:", selectedEndpoints); // Debugging log
+
+            let response = await fetch("/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(selectedEndpoints)
+            });
+
+            let output = await response.text();
+            document.getElementById("output").textContent = output;
+        };
+
+        document.getElementById("download").onclick = function() {
+            let content = document.getElementById("output").textContent;
+            let blob = new Blob([content], { type: "application/json" });
+            let a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "openapi.json";
+            a.click();
+        };
+    </script>
+</body>
+</html>
