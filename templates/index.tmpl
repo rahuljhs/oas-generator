@@ -86,7 +86,7 @@
     <div id="left-panel">
         <h1>Upload OpenAPI Spec</h1>
         <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" name="oas">
+            <input type="file" id="oasFile" name="oas">
             <button type="submit">Upload</button>
         </form>
 
@@ -105,45 +105,68 @@
     <script>
         document.getElementById("uploadForm").onsubmit = async function(event) {
             event.preventDefault();
+            let fileInput = document.getElementById("oasFile");
+            let file = fileInput.files[0];
+
+            // Check file extension
+            if (file) {
+                let fileName = file.name.toLowerCase();
+                if (!fileName.endsWith(".json") && !fileName.endsWith(".yaml")) {
+                    alert("Invalid file extension! Please upload a .json or .yaml file.");
+                    return; // Prevent form submission
+                }
+            }
+
             let formData = new FormData(event.target);
 
-            let response = await fetch("/upload", {
-                method: "POST",
-                body: formData
-            });
+            try {
+                let response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
 
-            let data = await response.json();
-            let endpointsList = document.getElementById("endpoints");
-            endpointsList.innerHTML = "";
+                // Check if response is 4xx or 5xx
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(`Error: ${errorData.error || "Unknown error occurred!"}`);
+                    return;
+                }
 
-            data.endpoints.forEach(endpoint => {
-                let li = document.createElement("li");
-                let checkbox = document.createElement("input");
-                checkbox.type = "checkbox";
-                checkbox.value = endpoint;
-                checkbox.onchange = function() {
-                    select.style.display = this.checked ? "inline-block" : "none";
-                };
+                let data = await response.json();
+                let endpointsList = document.getElementById("endpoints");
+                endpointsList.innerHTML = "";
 
-                let label = document.createElement("label");
-                label.textContent = " " + endpoint;
+                data.endpoints.forEach(endpoint => {
+                    let li = document.createElement("li");
+                    let checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.value = endpoint;
+                    checkbox.onchange = function() {
+                        select.style.display = this.checked ? "inline-block" : "none";
+                    };
 
-                let select = document.createElement("select");
-                select.style.display = "none";
-                select.innerHTML = `
-                    <option value="AWS">AWS</option>
-                    <option value="AWS_PROXY">AWS_PROXY</option>
-                    <option value="MOCK">MOCK</option>
-                    <option value="HTTP">HTTP</option>
-                    <option value="HTTP_PROXY">HTTP_PROXY</option>
-                `;
-                select.style.marginLeft = "10px";
+                    let label = document.createElement("label");
+                    label.textContent = " " + endpoint;
 
-                li.appendChild(checkbox);
-                li.appendChild(label);
-                li.appendChild(select);
-                endpointsList.appendChild(li);
-            });
+                    let select = document.createElement("select");
+                    select.style.display = "none";
+                    select.innerHTML = `
+                        <option value="AWS">AWS</option>
+                        <option value="AWS_PROXY">AWS_PROXY</option>
+                        <option value="MOCK">MOCK</option>
+                        <option value="HTTP">HTTP</option>
+                        <option value="HTTP_PROXY">HTTP_PROXY</option>
+                    `;
+                    select.style.marginLeft = "10px";
+
+                    li.appendChild(checkbox);
+                    li.appendChild(label);
+                    li.appendChild(select);
+                    endpointsList.appendChild(li);
+                });
+            } catch (error) {
+                alert("Error occurred while uploading the file: " + error.message);
+            }
         };
 
         document.getElementById("generate").onclick = async function() {

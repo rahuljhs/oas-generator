@@ -8,6 +8,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
 )
 
 var loadedSpec *openapi3.T // Store the loaded OpenAPI spec
@@ -25,12 +26,14 @@ func main() {
 	r.POST("/upload", func(c *gin.Context) {
 		file, err := c.FormFile("oas")
 		if err != nil {
+			fmt.Println("Error retrieving file:", err)
 			c.String(http.StatusBadRequest, "Error retrieving file")
 			return
 		}
 
 		f, err := file.Open()
 		if err != nil {
+			fmt.Println("Could not open file:", err)
 			c.String(http.StatusInternalServerError, "Could not open file")
 			return
 		}
@@ -38,19 +41,30 @@ func main() {
 
 		data, err := io.ReadAll(f)
 		if err != nil {
+			fmt.Println("Error reading file:", err)
 			c.String(http.StatusInternalServerError, "Error reading file")
 			return
 		}
 
 		loader := openapi3.NewLoader()
-		spec, err := loader.LoadFromData(data)
+
+		var spec *openapi3.T
+		if isJSON(data) {
+			spec, err = loader.LoadFromData(data)
+		} else if isYAML(data) {
+			spec, err = loader.LoadFromData(data)
+		} else {
+			fmt.Println("Invalid file format detected.") // Log the format issue
+			c.String(http.StatusBadRequest, "Invalid file format. Only JSON and YAML OpenAPI files are supported. Please upload a .json or .yaml file.")
+			return
+		}
+
 		if err != nil {
 			c.String(http.StatusBadRequest, "Invalid OAS file")
 			return
 		}
 
 		loadedSpec = spec // Store the loaded OpenAPI spec in memory
-
 		endpoints := []string{}
 		if spec.Paths != nil {
 			for path, pathItem := range spec.Paths.Map() {
@@ -115,4 +129,16 @@ func main() {
 	})
 
 	r.Run(":8080")
+}
+
+// Helper functions to check the file type
+func isJSON(data []byte) bool {
+	return json.Valid(data)
+}
+
+func isYAML(data []byte) bool {
+	// You can try parsing the data as YAML using a simple check
+	var yamlData interface{}
+	err := yaml.Unmarshal(data, &yamlData)
+	return err == nil
 }
